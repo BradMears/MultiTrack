@@ -1,0 +1,9 @@
+# Calibration parameters for the Yaesu G-5500 az/el rotator computer interface
+# These values can change based on the 'Out Voltage Adj' potentiometers on
+# the back of the control box so these may have to be be re-meaasured if 
+# that adjustment is changed or if it drifts.
+# Axis, MinAngle, MinCount, MinVoltage, MaxAngle, MaxCount, MaxVoltage
+#  
+# Calibration captured 2024-09-15
+Az, 0, 208, 0.026, 540, 31920, 3.988
+El, 0, 288, 0.038, 180, 31984, 3.998
