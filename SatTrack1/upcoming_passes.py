@@ -61,7 +61,8 @@ for sat in amsats:
         for ti, event in zip(aos_time, events):
             name = event_names[event]
             print(ti.utc_strftime('%Y %b %d %H:%M:%S'), name)
-        
+
+
     '''
     if abs(days) > 2 and not refreshed:
         satellites = load.tle(stations_url, reload=True)
