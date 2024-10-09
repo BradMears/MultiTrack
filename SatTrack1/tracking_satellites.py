@@ -23,7 +23,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 import json
 from skyfield.api import load, load_file
-from skyfield.api import Topos
+#from skyfield.api import Topos
+from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
 
 ts = load.timescale()
@@ -32,58 +33,62 @@ t = ts.now()
 print(f'ts = {ts}')
 print(f't = {t}')
 # Observer coordinates
-lat, lon = 38.9596, -104.7695
-# Observer date
-year, month, day = 2024, 10, 9
+lat, lon, elev = 38.9596, -104.7695, 2092
 
-#i, refreshed, sat_list = 0, False, []
-#sat_file = "amateur_satellite_times_%s-%s-%s.txt" % (year, month, day)
-#stations_url = 'https://www.celestrak.com/NORAD/elements/amateur.txt'
+def load_from_file_or_url(group_name, max_days=7.0):
+    '''Loads Satellite data. First looks for a local file. If that doesn't 
+    exist or is older than max_days, goes to the Celestrak site.'''
+    filename = f'{group_name}.json'  # custom filename, not 'gp.php'
 
-max_days = 7.0         # download again once 7 days old
-filename = 'amateur.json'  # custom filename, not 'gp.php'
+    base = 'https://celestrak.org/NORAD/elements/gp.php'
+    url = base + f'?GROUP={group_name}&FORMAT=json'
 
-base = 'https://celestrak.org/NORAD/elements/gp.php'
-url = base + '?GROUP=amateur&FORMAT=json'
+    if not load.exists(filename) or load.days_old(filename) >= max_days:
+        print("File doesn't exist or is too old. Downloading")
+        load.download(url, filename=filename)
 
-if not load.exists(filename) or load.days_old(filename) >= max_days:
-    load.download(url, filename=filename)
+    with load.open(filename) as f:
+        raw_json = json.load(f)
 
-with load.open(filename) as f:
-    data = json.load(f)
+    return raw_json
 
-amsats = [EarthSatellite.from_omm(ts, fields) for fields in data]
-print('Loaded', len(amsats), 'satellites')
-print(json.dumps(data, indent=4))
+amsats_json = load_from_file_or_url('amateur')
+amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
+#print(json.dumps(amsats_json, indent=4))
+#print('Loaded', len(amsats), 'satellites')
 
-qth = Topos(lat, lon)
+#qth = Topos(lat, lon, elevation_m = 6000)
+qth = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m = elev)
+dt = t.utc_datetime()
+
+#for sat in amsats:
+#    print(f'{sat.name} {sat.model.satnum}')
 
 res = "AMATEUR SATELLITE TIMES FOR LOCATION: %s, %s\n" % (lat, lon)
 print(res)
-print("Date:", "-".join([str(year), str(month), str(day)]), "\n")
+print("Date:", "-".join([str(dt.year), str(dt.month), str(dt.day)]), "\n")
 
-#print(f'satellites = {satellites}')
-#for k, v in satellites.items():
-#    print(f'{k} (key)\t{v}')
+print(dt)
 
-'''
-for sat in satellites:
+t0 = t
+t1 = t0 + 0.25 # 6 hours
+for sat in amsats:
 
-    if isinstance(sat, int):
-        continue
+    difference = sat - qth
+    days = t - sat.epoch
 
-    satellite = satellites[sat]
-    print(f'sat = {sat}  satellite = {satellite}')
-    sid = str(satellite).rsplit(' ', 2)[1].split("=")[1]
+    #print(f'diff 1= {difference.at(t)}')
+    #print(f'diff 2= {(qth - sat).at(t)}')
 
-    if sid not in sat_list:
-        sat_list.append(sid)
-    else:
-        continue
-
-    difference = satellite - qth
-    days = t - satellite.epoch
-
+    t, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
+    if len(events) > 0:
+        print(f'sat = {sat.name}')
+        event_names = 'rise above 30°', 'culminate', 'set below 30°'
+        for ti, event in zip(t, events):
+            name = event_names[event]
+            print(ti.utc_strftime('%Y %b %d %H:%M:%S'), name)
+        
+    '''
     if abs(days) > 2 and not refreshed:
         satellites = load.tle(stations_url, reload=True)
         refreshed = True
@@ -100,7 +105,8 @@ for sat in satellites:
         "KM",)
 
     sep = True
-
+'''
+'''
     for hh in range(24):
 
         for mm in range(60):
