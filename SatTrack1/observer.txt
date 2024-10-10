@@ -1,0 +1,5 @@
+# My home in COS
+latitude = 38.9596
+longitude = -104.7695
+elevation_m = 2092
+timezone = America/Denver
