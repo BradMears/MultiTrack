@@ -55,30 +55,44 @@ class SatWithEvents():
     '''Holds a satellite and the list of times and events that are associated 
     with it, This is not a broadly useful class but it is helpful for building
     a sorted set of passes to look at.'''
-    def __init__(self, sat, aos_time, events):
+
+    # User code can override this if desired 
+    event_names=['Ascent Event', 'Culminate', 'Descent Event']
+
+    def __init__(self, sat, evt_time, events):
         self.sat = sat
-        self.aos_time = aos_time
+        self.evt_time = evt_time
         self.events = events
 
     def __lt__(self, other):
         '''Compares based solely on the time of the first event for each one.'''
-        return self.aos_time[0] < other.aos_time[0]
+        return self.evt_time[0] < other.evt_time[0]
+    
+    def __str__(self):
+        assert(len(SatWithEvents.event_names) == 3)
+        s = f'{self.sat.model.satnum} {self.sat.name}\n'
+        for ti, event in zip(self.evt_time, self.events):
+            dt_str = ti.utc_datetime().astimezone(TZ)
+            s += f'\t{dt_str} {SatWithEvents.event_names[event]}\n'
+        
+        return s
 
 # Find all satellites with passes over a certain elevation happening in 
 # the upcoming few hours
 t0 = t
-t1 = t0 + 0.16 # app. 4 hours
+t1 = t0 + 4/24 # 4 hours
+#t1 = t0 + 2/24 #2 hours
 sats_with_events = []
+SatWithEvents.event_names = 'rise above 30°', 'Culminate', 'set below 30°'
 for sat in amsats:
-    aos_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
+    evt_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
     if len(events) > 0:
-        sats_with_events.append(SatWithEvents(sat, aos_time, events))
+        sats_with_events.append(SatWithEvents(sat, evt_time, events))
 
 # Sort that list based on date & time
 sats_with_events.sort()
 for ii, entry in enumerate(sats_with_events):
-    dt_str = entry.aos_time[0].utc_datetime().astimezone(TZ)
-    print(f'{ii+1:3}\t{dt_str}\t{entry.sat.name}')
+    print(f'{ii+1:3}\t{entry}')
 
 # Let the user select a pass to track
 pass_num = 0
@@ -88,11 +102,16 @@ pass_num -= 1 # put it back to a zero index
 
 entry = sats_with_events[pass_num]
 print(f"You selected {entry.sat.name}")
-event_names = 'rise above 30°', 'culminate', 'set below 30°'
-for ti, event in zip(entry.aos_time, entry.events):
-    dt_str = ti.utc_datetime().astimezone(TZ)
-    name = event_names[event]
-    print(f'{dt_str} {name}')
+print(entry)
+
+print('Horizon to horizon times')
+window_in_minutes = 30 / (24 * 60)
+t0 = entry.evt_time[0] - window_in_minutes
+t1 = entry.evt_time[-1] + window_in_minutes
+SatWithEvents.event_names = 'Above horizon', 'Culminate', 'Below horizon'
+evt_time, events = entry.sat.find_events(qth, t0, t1, altitude_degrees=0.0)
+entry = SatWithEvents(entry.sat, evt_time, events)
+print(entry)
 
 if False:
     pass
@@ -102,7 +121,7 @@ if False:
 
         print(f'sat = {sat.name}')
         event_names = 'rise above 30°', 'culminate', 'set below 30°'
-        for ti, event in zip(aos_time, events):
+        for ti, event in zip(evt_time, events):
             name = event_names[event]
             print(ti.utc_strftime('%Y %b %d %H:%M:%S'), name)
             for m in range(20):
