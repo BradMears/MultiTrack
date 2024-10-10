@@ -1,16 +1,29 @@
 #!/usr/bin/env python3
 '''Prints a list of upcoming passes for amateur radio satellites.'''
 
+from os import environ
+from datetime import datetime, timezone
+import pytz
 import json
 from skyfield.api import load
 from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
 
-ts = load.timescale()
-t = ts.now()
-
 # Observer coordinates
 lat, lon, elev = 38.9596, -104.7695, 2092
+
+# Set the timezone and get the current time in skyfield format and in
+# regular python datetime
+try:
+    TZ_STRING = environ['TZ']
+except KeyError:
+    TZ_STRING = 'America/Denver'
+TZ = pytz.timezone(TZ_STRING)
+
+ts = load.timescale()
+t = ts.now()
+dt = t.utc_datetime()
+print(f"Local time {dt.astimezone(TZ).isoformat()}")
 
 def load_from_file_or_url(group_name, max_days=7.0):
     '''Loads Satellite data. First looks for a local file. If that doesn't 
@@ -31,53 +44,62 @@ def load_from_file_or_url(group_name, max_days=7.0):
 
 amsats_json = load_from_file_or_url('amateur')
 amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
-#print(json.dumps(amsats_json, indent=4))
-#print('Loaded', len(amsats), 'satellites')
 
 qth = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m = elev)
-dt = t.utc_datetime()
-print(dt)
 
-#for sat in amsats:
-#    print(f'{sat.name} {sat.model.satnum}')
+print(f"Upcoming passes for : {qth}")
+print(f'All times in {TZ} timezone')
+print()
 
-print(f"Upcoming passes for : {qth}\n")
-print("Date:", "-".join([str(dt.year), str(dt.month), str(dt.day)]), "\n")
-
-class Foo():
+class SatWithEvents():
+    '''Holds a satellite and the list of times and events that are associated 
+    with it, This is not a broadly useful class but it is helpful for building
+    a sorted set of passes to look at.'''
     def __init__(self, sat, aos_time, events):
         self.sat = sat
         self.aos_time = aos_time
         self.events = events
 
     def __lt__(self, other):
+        '''Compares based solely on the time of the first event for each one.'''
         return self.aos_time[0] < other.aos_time[0]
 
+# Find all satellites with passes over a certain elevation happening in 
+# the upcoming few hours
 t0 = t
-t1 = t0 + 0.25 # 6 hours
-
+t1 = t0 + 0.16 # app. 4 hours
 sats_with_events = []
 for sat in amsats:
-
-    difference = sat - qth
-    days = t - sat.epoch
-
-    #print(f'diff 1= {difference.at(t)}')
-    #print(f'diff 2= {(qth - sat).at(t)}')
-
     aos_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
     if len(events) > 0:
-        sats_with_events.append(Foo(sat, aos_time, events))
+        sats_with_events.append(SatWithEvents(sat, aos_time, events))
 
-print("Sats with events")
-#print(sats_with_events)
+# Sort that list based on date & time
 sats_with_events.sort()
-for foo in sats_with_events:
-    print(f'{foo.aos_time[0]}\t{foo.aos_time[0].utc_datetime()}\t{foo.sat.name}')
+for ii, entry in enumerate(sats_with_events):
+    dt_str = entry.aos_time[0].utc_datetime().astimezone(TZ)
+    print(f'{ii+1:3}\t{dt_str}\t{entry.sat.name}')
+
+# Let the user select a pass to track
+pass_num = 0
+while not(0 < pass_num <= len(sats_with_events)):
+    pass_num = int(input("Choose a pass to watch: ")) 
+pass_num -= 1 # put it back to a zero index
+
+entry = sats_with_events[pass_num]
+print(f"You selected {entry.sat.name}")
+event_names = 'rise above 30°', 'culminate', 'set below 30°'
+for ti, event in zip(entry.aos_time, entry.events):
+    dt_str = ti.utc_datetime().astimezone(TZ)
+    name = event_names[event]
+    print(f'{dt_str} {name}')
 
 if False:
     pass
     '''
+    difference = sat - qth
+    days = t - sat.epoch
+
         print(f'sat = {sat.name}')
         event_names = 'rise above 30°', 'culminate', 'set below 30°'
         for ti, event in zip(aos_time, events):
