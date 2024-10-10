@@ -44,8 +44,19 @@ print(dt)
 print(f"Upcoming passes for : {qth}\n")
 print("Date:", "-".join([str(dt.year), str(dt.month), str(dt.day)]), "\n")
 
+class Foo():
+    def __init__(self, sat, aos_time, events):
+        self.sat = sat
+        self.aos_time = aos_time
+        self.events = events
+
+    def __lt__(self, other):
+        return self.aos_time[0] < other.aos_time[0]
+
 t0 = t
 t1 = t0 + 0.25 # 6 hours
+
+sats_with_events = []
 for sat in amsats:
 
     difference = sat - qth
@@ -56,11 +67,30 @@ for sat in amsats:
 
     aos_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
     if len(events) > 0:
+        sats_with_events.append(Foo(sat, aos_time, events))
+
+print("Sats with events")
+#print(sats_with_events)
+sats_with_events.sort()
+for foo in sats_with_events:
+    print(f'{foo.aos_time[0]}\t{foo.aos_time[0].utc_datetime()}\t{foo.sat.name}')
+
+if False:
+    pass
+    '''
         print(f'sat = {sat.name}')
         event_names = 'rise above 30°', 'culminate', 'set below 30°'
         for ti, event in zip(aos_time, events):
             name = event_names[event]
             print(ti.utc_strftime('%Y %b %d %H:%M:%S'), name)
+            for m in range(20):
+                new_t = t0 + (m / (24*60))
+                topocentric = difference.at(t)
+                alt, az, distance = topocentric.altaz()
+                print(f'{m} {alt} {az}')
+    
+    break
+    '''
         
     '''
     if abs(days) > 2 and not refreshed:
