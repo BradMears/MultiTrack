@@ -2,11 +2,10 @@
 '''Calculates a look plan for a satellite pass. This is a sequence of times 
 and positions that can be sent to a rotator.'''
 
+from typing import List
 from dataclasses import dataclass
+from skyfield.api import EarthSatellite, Time
 
-class Pass():
-    def __init__(self):
-        pass
 
 @dataclass
 class RotatorSpecs:

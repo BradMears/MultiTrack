@@ -88,6 +88,133 @@ class SatWithEvents():
         
         return s
 
+class Pass():
+    def __init__(self, pos, sat : EarthSatellite, peak_time):
+        '''Fill in a pass given the time it peaks (or 'culminates')'''
+        # This is not efficient and it has belt, suspenders, and duct tape
+        # since I am still exploring the Skyfield API.    
+        self.sat = sat
+        self.peak_time = peak_time
+        self.ascend_time = None # These better be explicitly set before we're done 
+        self.descend_time = None
+
+        # How wide a timeframe should we examine? If we make it too small, we 
+        # may not get the time when it goes above or below the horizon. If we 
+        # make it too big, we may burn a lot of processing time.
+        # I would like to base this on the sat's orbital period but I don't
+        # know an easy way to calculate that right now. For now, I'm using
+        # a smallish value since I'm interested in LEO objects
+        window_in_minutes = 120 / (60 * 24)
+        t0 = peak_time - window_in_minutes
+        t1 = peak_time + window_in_minutes
+
+        # Step 1 - Search for events up to and including the time of interest
+        # to us. The last rise_time in that list will be the one we want.    
+        evt_times, events = sat.find_events(qth, t0, peak_time, altitude_degrees=0.0)
+        if len(events) == 0:
+            raise ValueError('Orbital period too long?')
+
+        # This is a paranoia loop. Take it out after it has passed a few times 
+        prev_time = evt_times[0] - 1 # Dummy for first comparison 
+        for evt_time, event in zip(evt_times, events):
+            assert(prev_time < evt_time)  # Do we understand the return values correctly or not?
+            prev_time = evt_time
+
+        # Since the event times are sorted in ascending time, the last rise time is the one we want
+        for evt_time, event in zip(reversed(evt_times), reversed(events)):
+            if event == 0:   # Rising event
+                self.ascend_time = evt_time
+                break
+
+        # Step 2 - Search for starting at the time of interest. The first descent
+        # in that list will be the one we want.    
+        evt_times, events = sat.find_events(qth, peak_time, t1, altitude_degrees=0.0)
+        if len(events) == 0:
+            raise ValueError('Orbital period too long?')
+
+        # This is a paranoia loop. Take it out after it has passed a few times 
+        prev_time = evt_times[0] - 1  # Dummy for first comparison 
+        for evt_time, event in zip(evt_times, events):
+            assert(prev_time < evt_time)  # Do we understand the return values correctly or not?
+            prev_time = evt_time
+
+        # Since the event times are sorted in ascending time, the first descent time is the one we want
+        for evt_time, event in zip(evt_times, events):
+            if event == 2:   # Rising event
+                self.descend_time = evt_time
+                break
+
+        # We better have found both the events we were looking for and they better
+        # be in the right time order. Otherwise something is wrong
+        assert(self.ascend_time != None)
+        assert(self.descend_time != None)
+        assert(self.ascend_time < peak_time)
+        assert(peak_time < self.descend_time)
+
+    def __lt__(self, other):
+        '''Compares based on the time of breaking the horizon for each one.'''
+        return self.ascend_time < other.ascend_time
+    
+    def __str__(self):
+        s = f'{self.sat.model.satnum} {self.sat.name}\n'
+        dt_str = self.ascend_time.utc_datetime().astimezone(TZ)
+        s += f'\t{dt_str} Rise time\n'
+
+        dt_str = self.peak_time.utc_datetime().astimezone(TZ)
+        s += f'\t{dt_str} Peak time\n'
+        
+        dt_str = self.descend_time.utc_datetime().astimezone(TZ)
+        s += f'\t{dt_str} Descend time\n'
+
+        return s
+
+    
+
+from typing import List
+from skyfield.toposlib import GeographicPosition
+def upcoming_passes(observer_pos : GeographicPosition, 
+                   sat : EarthSatellite, 
+                   min_elevation : float, 
+                   start_time, 
+                   end_time
+                   ) -> List[Pass]:
+    '''Return all of the upcoming passes for a satellite over a certain elevation in specified timeframe.'''
+    t0 = start_time
+    t1 = end_time
+
+    ''' Calling find_events() can return a set like this. We need to turn this 
+    into multiple passes.
+    According to https://rhodesmill.org/skyfield/earth-satellites.html:
+    "Beware that events might not always be in the order rise-culminate-set. 
+    Some satellites culminate several times between rising and setting."
+
+     16     32953 YUBILEINY (RS-30)                   
+        2024-10-11 11:11:42.644698-06:00 Rise above 30°
+        2024-10-11 11:14:50.491074-06:00 Culminate  
+        2024-10-11 11:17:57.316252-06:00 Set below 30°                                                   
+        2024-10-11 13:07:54.790948-06:00 Rise above 30°                                                  
+        2024-10-11 13:11:39.356618-06:00 Culminate
+        2024-10-11 13:15:22.755607-06:00 Set below 30° 
+    '''
+    evt_times, events = sat.find_events(observer_pos, t0, t1, altitude_degrees=min_elevation)
+
+    # The list of events from find_events() will contain 0 or more culminate 
+    # events that indicate the sat is at its peak. Each of these peaks represents
+    # a unique pass. Send that info to the Pass constructor so it can fill in the
+    # details.
+    passes = []
+    for evt_time, evt in zip(evt_times, events):
+        if evt == 1:    # In Skyfield, an event of 1 is 'culminate' aka peak
+            try:
+                passes.append(Pass(observer_pos, sat, evt_time))
+            except ValueError as e:
+                dt_str = evt_time.utc_datetime().astimezone(TZ)
+                print(f"Didn't add pass for {sat} at {dt_str}\n{e}")
+
+    passes.sort()
+    print(f'################## Generarated {len(passes)} passes for {sat}')
+    return passes
+
 
 if __name__ == "__main__":
     Globals.init_from_file('observer.txt')
@@ -119,22 +246,12 @@ if __name__ == "__main__":
     print(f'All times in {TZ} timezone')
     print()
 
-    # Find all satellites with passes over a certain elevation happening in 
-    # the upcoming few hours
-    t0 = t
-    t1 = t0 + 4/24 # 4 hours
-    #t1 = t0 + 2/24 #2 hours
-    sats_with_events = []
-    SatWithEvents.event_names = ('Rise above 30°', 'Culminate', 'Set below 30°')
     for sat in amsats:
-        evt_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
-        if len(events) > 0:
-            sats_with_events.append(SatWithEvents(sat, evt_time, events))
+        passes = upcoming_passes(qth, sat, 30.0, t, t+12/24)
+        for sat_pass in passes:
+            print(sat_pass)
 
-    # Sort that list based on date & time
-    sats_with_events.sort()
-    for ii, entry in enumerate(sats_with_events):
-        print(f'{ii+1:3}\t{entry}')
+    exit()
 
     # Let the user select a pass to track
     pass_num = 0
