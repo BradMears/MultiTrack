@@ -88,7 +88,7 @@ class SatWithEvents():
         
         return s
 
-class Pass():
+class SatellitePass():
     def __init__(self, pos, sat : EarthSatellite, peak_time):
         '''Fill in a pass given the time it peaks (or 'culminates')'''
         # This is not efficient and it has belt, suspenders, and duct tape
@@ -112,7 +112,7 @@ class Pass():
         # to us. The last rise_time in that list will be the one we want.    
         evt_times, events = sat.find_events(qth, t0, peak_time, altitude_degrees=0.0)
         if len(events) == 0:
-            raise ValueError('Orbital period too long?')
+            raise ValueError('Orbital period too long for window?')
 
         # This is a paranoia loop. Take it out after it has passed a few times 
         prev_time = evt_times[0] - 1 # Dummy for first comparison 
@@ -130,7 +130,7 @@ class Pass():
         # in that list will be the one we want.    
         evt_times, events = sat.find_events(qth, peak_time, t1, altitude_degrees=0.0)
         if len(events) == 0:
-            raise ValueError('Orbital period too long?')
+            raise ValueError('Orbital period too long for window?')
 
         # This is a paranoia loop. Take it out after it has passed a few times 
         prev_time = evt_times[0] - 1  # Dummy for first comparison 
@@ -177,7 +177,7 @@ def upcoming_passes(observer_pos : GeographicPosition,
                    min_elevation : float, 
                    start_time, 
                    end_time
-                   ) -> List[Pass]:
+                   ) -> List[SatellitePass]:
     '''Return all of the upcoming passes for a satellite over a certain elevation in specified timeframe.'''
     t0 = start_time
     t1 = end_time
@@ -206,13 +206,12 @@ def upcoming_passes(observer_pos : GeographicPosition,
     for evt_time, evt in zip(evt_times, events):
         if evt == 1:    # In Skyfield, an event of 1 is 'culminate' aka peak
             try:
-                passes.append(Pass(observer_pos, sat, evt_time))
+                passes.append(SatellitePass(observer_pos, sat, evt_time))
             except ValueError as e:
                 dt_str = evt_time.utc_datetime().astimezone(TZ)
-                print(f"Didn't add pass for {sat} at {dt_str}\n{e}")
+                print(f"Didn't add pass for {sat} at {dt_str}\n{e}\n")
 
     passes.sort()
-    print(f'################## Generarated {len(passes)} passes for {sat}')
     return passes
 
 
@@ -246,39 +245,31 @@ if __name__ == "__main__":
     print(f'All times in {TZ} timezone')
     print()
 
+    pass_num = 1
+    all_passes = []
     for sat in amsats:
-        passes = upcoming_passes(qth, sat, 30.0, t, t+12/24)
-        for sat_pass in passes:
-            print(sat_pass)
-
-    exit()
+        sat_passes = upcoming_passes(qth, sat, 30.0, t, t+4/24)
+        for sat_pass in sat_passes:
+            print(f'{pass_num} {sat_pass}')
+            all_passes.append(sat_pass)
+            pass_num += 1
 
     # Let the user select a pass to track
     pass_num = 0
-    while not(0 < pass_num <= len(sats_with_events)):
+    while not(0 < pass_num <= len(all_passes)):
         pass_num = int(input("Choose a pass to watch: ")) 
     pass_num -= 1 # put it back to a zero index
 
-    entry = sats_with_events[pass_num]
+    entry = all_passes[pass_num]
     print(f"You selected {entry.sat.name}")
-    print(entry)
-
-    print('Horizon to horizon times')
-    window_in_minutes = 30 / (24 * 60)
-    t0 = entry.evt_time[0] - window_in_minutes
-    t1 = entry.evt_time[-1] + window_in_minutes
-    sat = entry.sat
-    SatWithEvents.event_names = ('Above horizon', 'Culminate', 'Below horizon')
-    evt_time, events = sat.find_events(qth, t0, t1, altitude_degrees=0.0)
-    entry = SatWithEvents(sat, evt_time, events)
     print(entry)
 
     # Print the look plan
     # Current output format
     # <Time tt=2460594.4939523726> Az = 131deg 31' 06.6" Elev = 15deg 55' 13.8"
-    difference = sat - qth
-    t0 = entry.evt_time[0]
-    t1 = entry.evt_time[-1]
+    difference = entry.sat - qth
+    t0 = entry.ascend_time
+    t1 = entry.descend_time
     look_time = t0
     time_step = 1 / (24 * 60)   # 1 minute
     while look_time.utc_datetime() <= t1.utc_datetime():
