@@ -128,7 +128,6 @@ if __name__ == "__main__":
     sat = sat_pass.sat
 
     # Print the look plan
-    # Current output format
     difference = sat_pass.sat - obs_pos
     t0 = sat_pass.ascend_time
     t1 = sat_pass.descend_time
@@ -138,5 +137,5 @@ if __name__ == "__main__":
         topocentric = difference.at(look_time)
         dt_str = look_time.utc_datetime().astimezone(TZ)
         alt, az, distance = topocentric.altaz()
-        print(f'{dt_str} Az = {az.degrees:7.2f} Elev = {alt.degrees:7.2f} ')
+        print(f'{dt_str} Az = {az.degrees:6.2f} Elev = {alt.degrees:6.2f} ')
         look_time += time_step
