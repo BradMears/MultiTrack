@@ -9,6 +9,9 @@ from skyfield.api import load
 from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
 from SatellitePass import SatellitePass, upcoming_passes
+from rotator_position import RotatorPosition
+from look_plan import LookPlan
+from rotator import Rotator
 
 class Globals:
     '''Encapsulates a name/value config file and turns it into a map of
@@ -79,6 +82,8 @@ if __name__ == "__main__":
         TZ_STRING = Globals.vars.timezone
     TZ = pytz.timezone(TZ_STRING)
     SatellitePass.TZ = TZ
+    RotatorPosition.TZ = TZ
+    LookPlan.TZ = TZ
 
     ts = load.timescale()
     t = ts.now()
@@ -127,15 +132,15 @@ if __name__ == "__main__":
     print(sat_pass)
     sat = sat_pass.sat
 
-    # Print the look plan
-    difference = sat_pass.sat - obs_pos
-    t0 = sat_pass.ascend_time
-    t1 = sat_pass.descend_time
-    look_time = t0
+    # Create and print the look plan
     time_step = 1 / (24 * 60)   # 1 minute
-    while look_time.utc_datetime() <= t1.utc_datetime():
-        topocentric = difference.at(look_time)
-        dt_str = look_time.utc_datetime().astimezone(TZ)
-        alt, az, distance = topocentric.altaz()
-        print(f'{dt_str} Az = {az.degrees:6.2f} Elev = {alt.degrees:6.2f} ')
-        look_time += time_step
+    look_plan = LookPlan(obs_pos, sat_pass, time_step=time_step)
+    print(look_plan)
+
+    rotator = Rotator(az_min_deg=0, 
+                    az_max_deg=540, 
+                    el_min_deg=0, 
+                    el_max_deg=180, 
+                    az_speed=90.0/15)  # unloaded speed of the Yaesu G-5500
+    
+    rotator.execute_look_plan(look_plan)
