@@ -1,16 +1,50 @@
 #!/usr/bin/env python3
 '''Prints a list of upcoming passes for amateur radio satellites.'''
 
+from os import environ
+from datetime import datetime, timezone
+import pytz
 import json
 from skyfield.api import load
 from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
+from SatellitePass import SatellitePass, upcoming_passes
 
-ts = load.timescale()
-t = ts.now()
+class Globals:
+    '''Encapsulates a name/value config file and turns it into a map of
+    variables that can be used globally. Not sure if I like this design
+    or not. It is an experiment. A downside to it is that it doesn't
+    enforce which settings aare supposed to be present. October 2024'''
+    vars = {}
+    
+    @staticmethod
+    def init(readable):
+        '''Don't call this directly. Call one of the init_from_blah() methods.'''
+        myvars = {}
+        for line in readable:
+            line = line.strip()
+            if line.startswith('#') or line == '':
+                continue
+            name, var = line.partition("=")[::2]
+            name = name.strip()
+            try:
+                myvars[name] = float(var)
+            except ValueError:
+                myvars[name] = var.strip()
 
-# Observer coordinates
-lat, lon, elev = 38.9596, -104.7695, 2092
+        Globals.vars = type("Names", (), myvars)
+
+    @staticmethod
+    def init_from_file(filename : str ):
+        '''Reads configuration from a text file. This is the most common use case.'''
+        cal_file = open(filename, "r")
+        Globals.init(cal_file)
+
+    @staticmethod
+    def init_from_string(cls, raw_string : str ):
+        '''Reads configurations from a text string. Useful for unit testing.'''
+        readable = StringIO(raw_string)
+        Globals.init(readable)
 
 def load_from_file_or_url(group_name, max_days=7.0):
     '''Loads Satellite data. First looks for a local file. If that doesn't 
@@ -29,81 +63,79 @@ def load_from_file_or_url(group_name, max_days=7.0):
 
     return raw_json
 
-amsats_json = load_from_file_or_url('amateur')
-amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
-#print(json.dumps(amsats_json, indent=4))
-#print('Loaded', len(amsats), 'satellites')
+if __name__ == "__main__":
+    Globals.init_from_file('observer.txt')
 
-qth = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m = elev)
-dt = t.utc_datetime()
-print(dt)
+    # Observer coordinates
+    lon = Globals.vars.longitude
+    lat = Globals.vars.latitude
+    elev = Globals.vars.elevation_m
 
-#for sat in amsats:
-#    print(f'{sat.name} {sat.model.satnum}')
+    # Set the timezone and get the current time in skyfield format and in
+    # regular python datetime
+    try:
+        TZ_STRING = environ['TZ']
+    except KeyError:
+        TZ_STRING = Globals.vars.timezone
+    TZ = pytz.timezone(TZ_STRING)
+    SatellitePass.TZ = TZ
 
-print(f"Upcoming passes for : {qth}\n")
-print("Date:", "-".join([str(dt.year), str(dt.month), str(dt.day)]), "\n")
+    ts = load.timescale()
+    t = ts.now()
+    dt = t.utc_datetime()
+    print(f"Local time {dt.astimezone(TZ).isoformat()}")
 
-t0 = t
-t1 = t0 + 0.25 # 6 hours
-for sat in amsats:
+    amsats_json = load_from_file_or_url('amateur')
+    amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
 
-    difference = sat - qth
-    days = t - sat.epoch
+    obs_pos = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m = elev)
 
-    #print(f'diff 1= {difference.at(t)}')
-    #print(f'diff 2= {(qth - sat).at(t)}')
+    # Find all upcoming passes over 30 degrees in the desired timeframe
+    t_end = t + 4 / 24
+    all_passes = []
+    all_failed_passes = []
+    for sat in amsats:
+        sat_passes, failed_passes = upcoming_passes(obs_pos, sat, 30.0, t, t_end)
+        all_passes += sat_passes
+        all_failed_passes += failed_passes
 
-    aos_time, events = sat.find_events(qth, t0, t1, altitude_degrees=30.0)
-    if len(events) > 0:
-        print(f'sat = {sat.name}')
-        event_names = 'rise above 30°', 'culminate', 'set below 30°'
-        for ti, event in zip(aos_time, events):
-            name = event_names[event]
-            print(ti.utc_strftime('%Y %b %d %H:%M:%S'), name)
+    # If there were any passes that didn't get filled in, let the user know
+    for failure in all_failed_passes:
+        dt_str = failure[1].utc_datetime().astimezone(SatellitePass.TZ)
+        print(f'Did not fill in pass for {failure[0]} at {dt_str}')
+        print(f'\t{failure[2]}')
+    print()
 
+    # Print them out in order of time
+    all_passes.sort()
+    pass_num = 1
+    print(f"Upcoming passes for : {obs_pos}")
+    print(f'All times in {TZ} timezone')
+    print()
+    for sat_pass in all_passes:
+        print(f'{pass_num} {sat_pass}')
+        pass_num += 1
 
-    '''
-    if abs(days) > 2 and not refreshed:
-        satellites = load.tle(stations_url, reload=True)
-        refreshed = True
-        satellite = satellites[sat]
-        difference = satellite - qth
-        days = t - satellite.epoch
+    # Let the user select a pass to track
+    pass_num = 0
+    while not(0 < pass_num <= len(all_passes)):
+        pass_num = int(input("Choose a pass to watch: ")) 
+    pass_num -= 1 # put it back to a zero index
 
-    i += 1
-    print("Processing [%02d] %s: %.3f days away from epoch" % (i, sat, days))
-    res += "\n%s: %.3f days away from epoch\n" % (sat, days)
-    res += "%-16s  %3s  %-4s  %5s\n" % ("DATETIME",
-        "ALT",
-        "AZIM",
-        "KM",)
+    sat_pass = all_passes[pass_num]
+    print(f"You selected {sat_pass.sat.name}")
+    print(sat_pass)
+    sat = sat_pass.sat
 
-    sep = True
-'''
-'''
-    for hh in range(24):
-
-        for mm in range(60):
-
-            t = ts.utc(year, month, day, hh, mm)
-            topocentric = difference.at(t)
-            alt, az, distance = topocentric.altaz()
-
-            if alt.degrees < -0.5:
-                sep = True
-            else:
-                if sep:
-                    res += "%s\n" % ("-" * 34)
-                    sep = False
-
-                res += "%s  %2d°  %3d°  %5d\n" % (t.utc_strftime('%Y-%m-%d %H:%M'),
-                    round(alt.degrees),
-                    round(az.degrees),
-                    round(distance.km),)
-
-with open(sat_file, 'w', encoding='utf-8') as outfile:
-    outfile.write(res)
-
-print("Writing satellite times to: %s" % sat_file)
-'''
+    # Print the look plan
+    difference = sat_pass.sat - obs_pos
+    t0 = sat_pass.ascend_time
+    t1 = sat_pass.descend_time
+    look_time = t0
+    time_step = 1 / (24 * 60)   # 1 minute
+    while look_time.utc_datetime() <= t1.utc_datetime():
+        topocentric = difference.at(look_time)
+        dt_str = look_time.utc_datetime().astimezone(TZ)
+        alt, az, distance = topocentric.altaz()
+        print(f'{dt_str} Az = {az.degrees:6.2f} Elev = {alt.degrees:6.2f} ')
+        look_time += time_step
