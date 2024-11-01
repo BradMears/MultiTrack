@@ -17,7 +17,7 @@ class Globals:
     '''Encapsulates a name/value config file and turns it into a map of
     variables that can be used globally. Not sure if I like this design
     or not. It is an experiment. A downside to it is that it doesn't
-    enforce which settings aare supposed to be present. October 2024'''
+    enforce which settings are supposed to be present. October 2024'''
     vars = {}
     
     @staticmethod
