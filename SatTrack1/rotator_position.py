@@ -1,4 +1,4 @@
-#!/usr/bin/ev pyrhon
+#!/usr/bin/ev python3
 '''Provides  a simple dataclass that contains the time and position that we will
 use to aim a rotator at a satellite.'''
 from datetime import datetime

@@ -1,4 +1,4 @@
-#!/usr/bin/env
+#!/usr/bin/env python3
 '''Provides a basic rotator intarface that can be used for testing and as a
 base class.'''
 
