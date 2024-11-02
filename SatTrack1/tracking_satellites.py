@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 '''Prints a list of upcoming passes for amateur radio satellites.'''
 
 from os import environ
@@ -9,42 +10,19 @@ from skyfield.api import load
 from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
 from SatellitePass import SatellitePass, upcoming_passes
+import argparse_config_file
 
-class Globals:
-    '''Encapsulates a name/value config file and turns it into a map of
-    variables that can be used globally. Not sure if I like this design
-    or not. It is an experiment. A downside to it is that it doesn't
-    enforce which settings aare supposed to be present. October 2024'''
-    vars = {}
-    
-    @staticmethod
-    def init(readable):
-        '''Don't call this directly. Call one of the init_from_blah() methods.'''
-        myvars = {}
-        for line in readable:
-            line = line.strip()
-            if line.startswith('#') or line == '':
-                continue
-            name, var = line.partition("=")[::2]
-            name = name.strip()
-            try:
-                myvars[name] = float(var)
-            except ValueError:
-                myvars[name] = var.strip()
+CONFIG_FILE='observer.txt'
 
-        Globals.vars = type("Names", (), myvars)
+# Define the set of command-line arguments
+parser = argparse_config_file.ArgumentParserWithConfig(description=__doc__)
+parser.add_argument('--conf_export', action='store_true')
+parser.add_argument('--elevation_m', type=float, default=0)
+parser.add_argument('--longitude', type=float, default=0)
+parser.add_argument('--latitude', type=float, default=0)
+parser.add_argument('--timezone', type=str, default="UTC")
+parser.add_argument('--max_passes', type=int, default=99999)
 
-    @staticmethod
-    def init_from_file(filename : str ):
-        '''Reads configuration from a text file. This is the most common use case.'''
-        cal_file = open(filename, "r")
-        Globals.init(cal_file)
-
-    @staticmethod
-    def init_from_string(cls, raw_string : str ):
-        '''Reads configurations from a text string. Useful for unit testing.'''
-        readable = StringIO(raw_string)
-        Globals.init(readable)
 
 def load_from_file_or_url(group_name, max_days=7.0):
     '''Loads Satellite data. First looks for a local file. If that doesn't 
@@ -64,19 +42,22 @@ def load_from_file_or_url(group_name, max_days=7.0):
     return raw_json
 
 if __name__ == "__main__":
-    Globals.init_from_file('observer.txt')
+    # Load configuration file and apply command-line overrides
+    try:
+        args = parser.load_args_and_overrides(CONFIG_FILE)
+    except FileNotFoundError as e:
+        print(e)
+        print('Using defaults and command-line only')
+        args = parser.parse_args()
 
     # Observer coordinates
-    lon = Globals.vars.longitude
-    lat = Globals.vars.latitude
-    elev = Globals.vars.elevation_m
+    lon = args.longitude
+    lat = args.latitude
+    elev = args.elevation_m
 
     # Set the timezone and get the current time in skyfield format and in
     # regular python datetime
-    try:
-        TZ_STRING = environ['TZ']
-    except KeyError:
-        TZ_STRING = Globals.vars.timezone
+    TZ_STRING = args.timezone
     TZ = pytz.timezone(TZ_STRING)
     SatellitePass.TZ = TZ
 
@@ -109,16 +90,19 @@ if __name__ == "__main__":
     # Print them out in order of time
     all_passes.sort()
     pass_num = 1
+    max_passes = min(args.max_passes, len(all_passes))
     print(f"Upcoming passes for : {obs_pos}")
     print(f'All times in {TZ} timezone')
     print()
     for sat_pass in all_passes:
         print(f'{pass_num} {sat_pass}')
         pass_num += 1
+        if pass_num > max_passes:
+            break
 
     # Let the user select a pass to track
     pass_num = 0
-    while not(0 < pass_num <= len(all_passes)):
+    while not(0 < pass_num <= max_passes):
         pass_num = int(input("Choose a pass to watch: ")) 
     pass_num -= 1 # put it back to a zero index
 
