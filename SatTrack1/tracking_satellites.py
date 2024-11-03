@@ -2,7 +2,6 @@
 
 '''Prints a list of upcoming passes for amateur radio satellites.'''
 
-from os import environ
 from datetime import datetime, timezone
 import pytz
 import json

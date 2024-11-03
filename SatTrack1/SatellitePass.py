@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 
-from typing import List
 from skyfield.api import EarthSatellite
 from skyfield.toposlib import GeographicPosition
+from skyfield.timelib import Time
 
 class SatellitePass():
     # Setting this manually is hacky. There must be a better way 
-    # TODO - Do some readin on python datetime and timezones
+    # TODO - Do some reading on python datetime and timezones
     TZ = None
 
-    def __init__(self, pos, sat : EarthSatellite, peak_time):
+    def __init__(self, 
+                 pos : GeographicPosition, 
+                 sat : EarthSatellite, 
+                 peak_time : Time ):
         '''Fill in a pass given the time it peaks (or 'culminates')'''
         # This is not efficient and it has belt, suspenders, and duct tape
         # since I am still exploring the Skyfield API.    
@@ -27,6 +30,13 @@ class SatellitePass():
         window_in_minutes = 120 / (60 * 24)
         t0 = peak_time - window_in_minutes
         t1 = peak_time + window_in_minutes
+
+        # Big picture for the following code. We do two searches, let's call them
+        # S1 and S2. S1 goes from t0 to the peak_time and S2 goes from the 
+        # peak_time to t1. The sat we're looking for may have multiple passes
+        # today so we want to find the pass that is defined by the *last* rise
+        # time in S1 and the *first* descent time in S2. These will straddle the
+        # peak_time.
 
         # Step 1 - Search for events up to and including the time of interest
         # to us. The last rise_time in that list will be the one we want.    
@@ -93,14 +103,13 @@ class SatellitePass():
         s += f'\t{dt_str} Descend time\n'
 
         return s
-
-    
+   
 def upcoming_passes(observer_pos : GeographicPosition, 
-                   sat : EarthSatellite, 
-                   min_elevation : float, 
-                   start_time, 
-                   end_time
-                   ):
+                    sat : EarthSatellite, 
+                    min_elevation : float, 
+                    start_time : Time, 
+                    end_time : Time
+                    ):
     '''Return all of the upcoming passes for a satellite over a certain elevation
     in a specified timeframe. The returned tuple also contains the list of passes 
     that could not be filled in.'''
@@ -139,8 +148,3 @@ def upcoming_passes(observer_pos : GeographicPosition,
 
     passes.sort()
     return passes, failed_passes
-
-# Need to add some unit tests here
-# To do that, I need to save the TLE file that is used at the time the unit
-# test is written. Otherwise, the tests will start to diverge as the elements
-# are updated in newer files.
