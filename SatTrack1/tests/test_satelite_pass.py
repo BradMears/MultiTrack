@@ -30,7 +30,7 @@ def set_globals():
     with load.open('amateur-241102.json') as f:
         amsats_json = json.load(f)
 
-    # Anything the test cases want to use are stores in pytest
+    # Anything the test cases want to use are stored in pytest
     pytest.amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
     pytest.t = Time(tt=2460617.3960255613, ts=ts)  # Time is stuck at 3:29 PM on Nov 2, 2024
     pytest.t_end = pytest.t + 4 / 24
