@@ -21,6 +21,8 @@ parser.add_argument('--longitude', type=float, default=0)
 parser.add_argument('--latitude', type=float, default=0)
 parser.add_argument('--timezone', type=str, default="UTC")
 parser.add_argument('--max_passes', type=int, default=99999)
+parser.add_argument('--hours', type=int, default=4)
+parser.add_argument('--min_angle', type=int, default=30)
 
 
 def load_from_file_or_url(group_name, max_days=7.0):
@@ -28,7 +30,9 @@ def load_from_file_or_url(group_name, max_days=7.0):
     exist or is older than max_days, goes to the Celestrak site.'''
     filename = f'{group_name}.json'  # custom filename, not 'gp.php'
 
-    base = 'https://celestrak.org/NORAD/elements/gp.php'
+    # You can use https on the following request but my work laptop complains about a self-signed certificate
+    # when I do that. Using plain http works fine.
+    base = 'http://celestrak.org/NORAD/elements/gp.php'
     url = base + f'?GROUP={group_name}&FORMAT=json'
 
     if not load.exists(filename) or load.days_old(filename) >= max_days:
@@ -54,6 +58,9 @@ if __name__ == "__main__":
     lat = args.latitude
     elev = args.elevation_m
 
+    assert(0 < args.hours < 24)
+    assert(0 < args.min_angle <= 90)
+
     # Set the timezone and get the current time in skyfield format and in
     # regular python datetime
     TZ_STRING = args.timezone
@@ -65,17 +72,29 @@ if __name__ == "__main__":
     dt = t.utc_datetime()
     print(f"Local time {dt.astimezone(TZ).isoformat()}")
 
-    amsats_json = load_from_file_or_url('amateur')
+    print(f'The complete list of satellite sets/collections can be seen by visitng http://celestrak.org/NORAD/elements.\nThis just a subset of the full list.')
+    known_sets = ['amateur', 'stations', 'analyst', 'visual', 'active', 'starlink', 'engineering', 'radar']
+
+    set_num = 0
+    while not(0 < set_num <= len(known_sets)):
+        for ii, name in enumerate(known_sets):
+            print(ii+1, name)
+        set_num = int(input("Choose a set of satellites to choose from: ")) 
+
+    set_name = known_sets[set_num-1] # Remember to use a zero index
+    print(f'Looking for upcoming passes in the "{set_name}" collection')
+
+    amsats_json = load_from_file_or_url(set_name)
     amsats = [EarthSatellite.from_omm(ts, fields) for fields in amsats_json]
 
     obs_pos = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m = elev)
 
-    # Find all upcoming passes over 30 degrees in the desired timeframe
-    t_end = t + 4 / 24
+    # Find all upcoming passes over the minimum angle in the desired timeframe
+    t_end = t + args.hours / 24
     all_passes = []
     all_failed_passes = []
     for sat in amsats:
-        sat_passes, failed_passes = upcoming_passes(obs_pos, sat, 30.0, t, t_end)
+        sat_passes, failed_passes = upcoming_passes(obs_pos, sat, args.min_angle, t, t_end)
         all_passes += sat_passes
         all_failed_passes += failed_passes
 
