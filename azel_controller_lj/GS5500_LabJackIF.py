@@ -27,20 +27,21 @@ of hardware AND will want to use this software."""
 # CIO0 = DIO16
 
 class LabJackT4db15ToYaesuGS5500:
-    # This configuration uses seven of the eight pins on the top row
-    # GND, 4 outputs, and 2 inputs
+    # This configuration uses GND, 4 outputs, and 3 analog inputs
     INPUT_PORTS = {'az_in': 'AIN8', 
-                   'el_in': 'AIN10'}
+                   'el_in': 'AIN10',
+                   'pwr_on_in': 'AIN9'}
     OUPUT_PORTS = {'az_left': 'EIO6', 
-                   'az_right': 'EI04',
+                   'az_right': 'EIO4',
                    'el_up': 'CIO3',
                    'el_down': 'CIO1'}
 
 class LabJackT4MainBodyToYaesuGS5500:
     INPUT_PORTS = {'az_in': 'AIN0', 
-                   'el_in': 'AIN1'}
-    OUPUT_PORTS = {'az_left': 'FIO6', 
-                   'az_right': 'FIO7',
+                   'el_in': 'AIN1',
+                   'pwr_on_in': 'AIN3'}
+    OUPUT_PORTS = {'az_left': 'FIO7', 
+                   'az_right': 'FIO6',
                    'el_up': 'FIO5',
                    'el_down': 'FIO4'}
 
