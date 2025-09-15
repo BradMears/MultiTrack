@@ -42,8 +42,7 @@ class G5500_LabJack(G5500.G5500):
         return INPUT_PORTS, OUPUT_PORTS
 
     def __init__(self, cal_file : str = 'rotator_cal.txt'):
-        '''Constructor. input_ports and output_ports should be dictionaries with the
-        names of the LabJack T4 pins to use for each function.'''
+        '''Constructor'''
         super().__init__(cal_file)
         self.input_ports, self.output_ports = G5500_LabJack.use_main_body()
         self.az_right = self.output_ports["az_right"]
@@ -67,7 +66,7 @@ class G5500_LabJack(G5500.G5500):
         """
         try:
             ljm.close(self.handle)
-            print(f"LabJack handle closed.")
+            print("LabJack handle closed.")
         except Exception as e:
             print(f"Error closing LabJack handle: {e}") 
 

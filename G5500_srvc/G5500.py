@@ -103,9 +103,11 @@ class YaesuG5500Positions:
         return str(self.cal_data)
 
 class G5500:
-    '''Base class for controlling a Yaesu G5500 rotator. This class does not do any device I/O.
+    '''
+    Abstract interface for controlling a Yaesu G5500 rotator. This class does not do any device I/O.
     It just defines the interface and base functionality. Subclasses must implement the required
-    device I/O routines.'''
+    device I/O routines.
+    '''
 
     def __init__(self, cal_file : str):
         '''Constructor.'''

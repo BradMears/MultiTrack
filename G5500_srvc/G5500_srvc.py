@@ -13,6 +13,7 @@ import argparse_config_file
 from G5500 import G5500
 
 CONFIG_FILE='G5500_config.txt'
+CAL_FILE='rotator_cal.txt'
 
 # Port number was selected by browing for unused ones on https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
 DEFAULT_PORT=9040 # Default port for the service to listen on
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     print(f'{args.hw_interface=}')
     if args.hw_interface == 'LabJack':
         import G5500_LabJackIF as G5500_IF
-        g5500 = G5500_IF.G5500_LabJack()
+        g5500 = G5500_IF.G5500_LabJack(CAL_FILE)
     else:
         #import G5500_FT232HIF as G5500_IF
         g5500 = None
