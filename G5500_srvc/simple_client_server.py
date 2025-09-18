@@ -2,13 +2,17 @@ import socket
 import threading
 import datetime
 import platform
+import G5500
 
 # Server configuration
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 65432        # Port to listen on (non-privileged ports are > 1023)
 
-def handle_client(conn, addr):
-    """Handles individual client connections."""
+CONFIG_FILE='G5500_config.txt'
+CAL_FILE='rotator_cal.txt'
+
+def handle_client(conn, addr, g5500 : G5500):
+    """Handles individual client connections to the G5500 az/el rotator."""
     print(f"Connected by {addr}")
     conn.sendall(b"Welcome to the command server! Type 'HELP' for commands.\n")
 
@@ -21,16 +25,29 @@ def handle_client(conn, addr):
             command = data.decode('utf-8').strip().upper()
             response = ""
 
-            if command == "TIME":
-                response = f"Current time: {datetime.datetime.now().strftime('%H:%M:%S')}"
-            elif command == "DATE":
-                response = f"Current date: {datetime.date.today().strftime('%Y-%m-%d')}"
-            elif command == "OS":
-                response = f"Server OS: {platform.system()} {platform.release()}"
+            if command in ["STOP", "X"]:
+                g5500.stop_motion()
+                response = f"STOP command executed."
+            elif command == "LEFT":
+                g5500.move_az_left()
+                response = f"LEFT command executed."
+            elif command == "RIGHT":
+                g5500.move_az_right()
+                response = f"RIGHT command executed."
+            elif command == "UP":
+                g5500.move_el_up()
+                response = f"UP command executed."
+            elif command == "DOWN":
+                g5500.move_el_down()
+                response = f"DOWN command executed."
+            elif command == "READ":
+                g5500.read_sensors()
+                response = f"READ command executed. {g5500}"
             elif command == "HELP":
-                response = "Available commands: TIME, DATE, OS, HELP, QUIT"
+                response = "Available commands: STOP, LEFT, RIGHT, UP, DOWN, READ, HELP, QUIT"
             elif command == "QUIT":
-                response = "Goodbye!"
+                g5500.stop_motion()
+                response = "STOP command executed. Exiting."
                 conn.sendall(response.encode('utf-8') + b'\n')
                 break
             else:
@@ -45,10 +62,11 @@ def handle_client(conn, addr):
             print(f"Error with client {addr}: {e}")
             break
 
+    g5500.stop_motion()
     print(f"Client {addr} disconnected.")
     conn.close()
 
-def start_server():
+def start_server(g5500 : G5500):
     """Starts the main server loop."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
@@ -58,8 +76,11 @@ def start_server():
         while True:
             conn, addr = s.accept()
             # Handle client in a new thread to allow multiple connections
-            client_handler = threading.Thread(target=handle_client, args=(conn, addr))
+            client_handler = threading.Thread(target=handle_client, args=(conn, addr, g5500))
             client_handler.start()
 
 if __name__ == "__main__":
-    start_server()
+    import G5500_LabJackIF as G5500_IF
+    g5500 = G5500_IF.G5500_LabJack(CAL_FILE)
+
+    start_server(g5500)
