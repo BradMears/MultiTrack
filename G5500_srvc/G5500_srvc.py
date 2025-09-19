@@ -11,6 +11,7 @@ import socket
 import sys
 import argparse_config_file
 from G5500 import G5500
+import simple_client_server
 
 CONFIG_FILE='G5500_config.txt'
 CAL_FILE='rotator_cal.txt'
@@ -126,4 +127,4 @@ if __name__ == "__main__":
         interactive_mode(g5500)
     else:
         print("Using service mode")
-        print('Exiting service mode - not implemented yet')
+        simple_client_server.start_server(g5500, args.port)

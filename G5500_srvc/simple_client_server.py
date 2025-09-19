@@ -66,13 +66,12 @@ def handle_client(conn, addr, g5500 : G5500):
     print(f"Client {addr} disconnected.")
     conn.close()
 
-def start_server(g5500 : G5500):
+def start_server(g5500 : G5500, portnum : int = PORT):
     """Starts the main server loop."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
+        s.bind((HOST, portnum))
         s.listen()
-        print(f"Server listening on {HOST}:{PORT}")
-
+        print(f"Server listening on {HOST}:{portnum}")
         while True:
             conn, addr = s.accept()
             # Handle client in a new thread to allow multiple connections
