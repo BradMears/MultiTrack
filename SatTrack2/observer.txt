@@ -1,0 +1,17 @@
+# My home in COS
+latitude = 38.9596
+longitude = -104.7695
+elevation_m = 2092
+timezone = "America/Denver"
+# Exmouth 
+#latitude = -21.93705402
+#longitude = 114.12617667
+#elevation_m = 15
+#timezone = "UTC"
+#tle_file = "Catalog-TLE-250119.dat"
+tle_file = "amateur.json"
+#max_hours = 2 
+min_angle = 25 
+#min_range = 150 
+#max_range = 4000 
+#max_passes = 50
