@@ -100,8 +100,63 @@ class G5500_LabJack(G5500.G5500):
         if not (cal.el.min_angle <= el <= cal.el.max_angle):
             raise ValueError(f'Elevation {el} is out of range ({cal.el.min_angle} to {cal.el.max_angle})')
 
-        # Move azimuth and elevation separately to avoid overshoot.
+        # Create "function pointers" and lambdas to simplify the motion logic in the loop below.
+        # The mover methods start motion in the desired direction. The lambdas
+        # return True if we have reached or passed the target position.
+        if az < self.az:
+            az_mover = self.move_az_left
+            az_at_target = lambda actual, target: actual < target + 0.5
+        else:
+            az_mover = self.move_az_right
+            az_at_target = lambda actual, target: actual > target - 0.5
+
+        if el < self.el:
+            el_mover = self.move_el_down
+            el_at_target = lambda actual, target: actual < target + 0.5
+        else:
+            el_mover = self.move_el_up
+            el_at_target = lambda actual, target: actual > target - 0.5
+
+        el_mover = self.move_el_down if el < self.el else self.move_el_up
+
+        # The first stage of motion is to move both axes simultaneously to save time.
+        while True:
+            if not az_at_target(self.az, az):
+                az_mover()
+            else:
+                self.stop_az_motion()
+
+            if not el_at_target(self.el, el):
+                el_mover()
+            else:
+                self.stop_el_motion()
+
+            self.read_sensors()
+            if isclose(self.az, az, abs_tol=0.5) and isclose(self.el, el, abs_tol=0.5):
+                self.stop_motion()
+                break
+
+        """
+        # The first stage of motion is to move both axes simultaneously to save time.
+        while not (isclose(self.az, az, abs_tol=1.0)) or not (isclose(self.el, el, abs_tol=0.5)):
+            if self.az < az:
+                self.move_az_right()
+            else:
+                self.move_az_left()
+
+            if self.el < el:
+                self.move_el_up()
+            else:
+                self.move_el_down()
+            self.read_sensors()
+        self.stop_az_motion()
+        self.stop_el_motion()
+
+        # The second stage of motion is to move each axis separately to get to 
+        # the final position. Hopefully this will give us a bit more accuracy
+        # than the first stage did.
         # First move azimuth
+        self.read_sensors()
         while not (isclose(self.az, az, abs_tol=0.5)):
             if self.az < az:
                 self.move_az_right()
@@ -118,6 +173,7 @@ class G5500_LabJack(G5500.G5500):
                 self.move_el_down()
             self.read_sensors()
         self.stop_el_motion()
+        """
     
     def move_az_right(self):
         '''Starts motion to increase azimuth.'''

@@ -39,6 +39,8 @@ def handle_client(conn, addr, g5500 : G5500):
                     except ValueError:
                         response = "Error: MOVETO command arguments must be numeric."
                     else:
+                        # Do it twice since the first time sometimes overshoots
+                        g5500.move_to(az, el) # Blocking call
                         g5500.move_to(az, el) # Blocking call
                         response = f"MOVETO {az},{el} command executed."
             elif command == "LEFT":
