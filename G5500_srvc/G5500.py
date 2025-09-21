@@ -120,6 +120,19 @@ class G5500:
         '''Stops all motion of the rotator.'''
         raise NotImplementedError('stop_motion() must be implemented in a subclass')
     
+    def stop_az_motion(self):
+        '''Stops azimuth motion of the rotator.'''
+        raise NotImplementedError('stop_az_motion() must be implemented in a subclass')
+
+    def stop_el_motion(self):
+        '''Stops elevation motion of the rotator.'''
+        raise NotImplementedError('stop_el_motion() must be implemented in a subclass')
+        
+    def move_to(self, az : float, el : float):
+        '''Moves to the specified az/el coordinates. This is a blocking call that returns
+        when the move is complete.'''
+        raise NotImplementedError('move_to() must be implemented in a subclass')
+    
     def move_az_right(self):
         '''Starts motion to increase azimuth.'''
         raise NotImplementedError('move_az_right() must be implemented in a subclass')

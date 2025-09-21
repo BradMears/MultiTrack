@@ -22,12 +22,25 @@ def handle_client(conn, addr, g5500 : G5500):
             if not data:
                 break  # Client disconnected
 
-            command = data.decode('utf-8').strip().upper()
+            args = data.decode('utf-8').strip().upper().split()
+            command = args[0] if args else ""
             response = ""
 
             if command in ["STOP", "X"]:
                 g5500.stop_motion()
                 response = f"STOP command executed."
+            elif command == "MOVETO":
+                if len(args) != 3:
+                    response = "Error: MOVETO command requires two arguments: az and el."
+                else:
+                    try:
+                        az = float(args[1])
+                        el = float(args[2])
+                    except ValueError:
+                        response = "Error: MOVETO command arguments must be numeric."
+                    else:
+                        g5500.move_to(az, el) # Blocking call
+                        response = f"MOVETO {az},{el} command executed."
             elif command == "LEFT":
                 g5500.move_az_left()
                 response = f"LEFT command executed."

@@ -4,6 +4,7 @@ Yes, this is quite specific to how I wired up my LabJack T4 to my Yaesu GS5000 r
 but I don't really expect there to be many other people who will have those two pieces
 of hardware AND will want to use this software."""
 
+from math import isclose
 import G5500
 from labjack import ljm
 
@@ -76,6 +77,47 @@ class G5500_LabJack(G5500.G5500):
         ljm.eWriteName(self.handle, self.az_right, G5500_LabJack.STOP)
         ljm.eWriteName(self.handle, self.el_up, G5500_LabJack.STOP)
         ljm.eWriteName(self.handle, self.el_down, G5500_LabJack.STOP)
+    
+    def stop_az_motion(self):
+        '''Stops azimuth motion of the rotator.'''
+        ljm.eWriteName(self.handle, self.az_left, G5500_LabJack.STOP)
+        ljm.eWriteName(self.handle, self.az_right, G5500_LabJack.STOP)
+
+    def stop_el_motion(self):
+        '''Stops elevation motion of the rotator.'''
+        ljm.eWriteName(self.handle, self.el_up, G5500_LabJack.STOP)
+        ljm.eWriteName(self.handle, self.el_down, G5500_LabJack.STOP)
+        
+    def move_to(self, az : float, el : float):
+        '''Moves to the specified az/el coordinates. This is a blocking call that returns
+        when the move is complete.'''
+        self.read_sensors()
+        if not self.pwr_on:
+            raise RuntimeError('Rotator power is off. Cannot move.')
+        cal = self.rotator.cal_data
+        if not (cal.az.min_angle <= az <= cal.az.max_angle):
+            raise ValueError(f'Azimuth {az} is out of range ({cal.az.min_angle} to {cal.az.max_angle})')
+        if not (cal.el.min_angle <= el <= cal.el.max_angle):
+            raise ValueError(f'Elevation {el} is out of range ({cal.el.min_angle} to {cal.el.max_angle})')
+
+        # Move azimuth and elevation separately to avoid overshoot.
+        # First move azimuth
+        while not (isclose(self.az, az, abs_tol=0.5)):
+            if self.az < az:
+                self.move_az_right()
+            else:
+                self.move_az_left()
+            self.read_sensors()
+        self.stop_az_motion()
+
+        # Then move elevation
+        while not (isclose(self.el, el, abs_tol=0.5)):
+            if self.el < el:
+                self.move_el_up()
+            else:
+                self.move_el_down()
+            self.read_sensors()
+        self.stop_el_motion()
     
     def move_az_right(self):
         '''Starts motion to increase azimuth.'''
