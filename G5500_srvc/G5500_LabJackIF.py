@@ -100,8 +100,9 @@ class G5500_LabJack(G5500.G5500):
         if not (cal.el.min_angle <= el <= cal.el.max_angle):
             raise ValueError(f'Elevation {el} is out of range ({cal.el.min_angle} to {cal.el.max_angle})')
 
-        # Do the whole loo twice since the first time sometimes overshoots
+        # Do the whole loop twice since the first time sometimes overshoots
         for tries in range(2):
+            print(f'Move attempt {tries+1} to az={az}, el={el}')
             self.read_sensors()
 
             # Create "function pointers" and lambdas to simplify the motion logic in the loop below.
@@ -109,19 +110,17 @@ class G5500_LabJack(G5500.G5500):
             # return True if we have reached or passed the target position.
             if az < self.az:
                 az_mover = self.move_az_left
-                az_at_target = lambda actual, target: actual < target + 0.5
+                az_at_target = lambda actual, target: actual < (target + 0.5)
             else:
                 az_mover = self.move_az_right
-                az_at_target = lambda actual, target: actual > target - 0.5
+                az_at_target = lambda actual, target: (target - 0.5) < actual
 
             if el < self.el:
                 el_mover = self.move_el_down
-                el_at_target = lambda actual, target: actual < target + 0.5
+                el_at_target = lambda actual, target: actual < (target + 0.5)
             else:
                 el_mover = self.move_el_up
-                el_at_target = lambda actual, target: actual > target - 0.5
-
-            el_mover = self.move_el_down if el < self.el else self.move_el_up
+                el_at_target = lambda actual, target: (target - 0.5) < actual
 
             # The first stage of motion is to move both axes simultaneously to save time.
             while not az_at_target(self.az, az) or not el_at_target(self.el, el):
