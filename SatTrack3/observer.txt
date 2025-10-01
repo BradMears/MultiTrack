@@ -1,0 +1,10 @@
+# My home in COS
+latitude = 38.9596
+longitude = -104.7695
+elevation_m = 2092
+timezone = "America/Denver"
+max_hours = 2 
+min_angle = 25 
+min_range = 150 
+max_range = 4000 
+max_passes = 50
