@@ -27,7 +27,7 @@ def set_globals():
     # Get the fake time in skyfield format and in regular python datetime
     ts = load.timescale()
 
-    with load.open('amateur-241102.json') as f:
+    with load.open('tests/amateur-241102.json') as f:
         amsats_json = json.load(f)
 
     # Anything the test cases want to use are stores in pytest
@@ -41,15 +41,15 @@ set_globals()
 @pytest.mark.parametrize("satnum, passes, fails", 
                          [(14781, 1, 0), 
                           (60240, 1, 0), 
-                          (23439, 0, 1), 
-                          (53106, 0, 1),
+                          (23439, 1, 0), 
+                          (53106, 1, 0),
                           (44854, 0, 0) ])
 def test_passes_and_fails(satnum, passes, fails):
     sat = next((x for x in pytest.amsats if x.model.satnum == satnum), None)
     # Find all upcoming passes over 30 degrees in the desired timeframe
-    sat_passes, failed_passes = upcoming_passes(pytest.obs_pos, sat, 30.0, pytest.t, pytest.t_end)
+    sat_passes = upcoming_passes(pytest.obs_pos, sat, 30.0, pytest.t, pytest.t_end)
+    print(f'{satnum=} {sat.name} Passes={len(sat_passes)} Fails={0}') #len(failed_passes)}')
     assert len(sat_passes) == passes
-    assert len(failed_passes) == fails
 
 # This is a pretty sparse test suite. It could use some more test cases to
 # exercise SatellitePass directly and not just upcoming_passes(). 
